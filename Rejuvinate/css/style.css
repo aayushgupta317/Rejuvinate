@@ -195,3 +195,23 @@ textarea.small-text { min-height: 80px; }
   vertical-align: -2px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Links styled as buttons / brand */
+a.btn { display: inline-block; text-align: center; text-decoration: none; }
+a.brand { color: var(--text); text-decoration: none; }
+.topbar-links { display: flex; align-items: center; gap: 10px; }
+.head-actions { display: flex; gap: 8px; }
+
+/* Post to Team popup */
+.modal {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px;
+  background: rgba(8, 10, 22, 0.7);
+}
+.modal-card {
+  width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 8px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+.modal-card h3 { margin: 0; font-size: 1.15rem; }
+.modal-card .hint { margin: 0 0 4px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
