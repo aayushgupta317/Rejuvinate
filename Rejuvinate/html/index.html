@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Code Converter</title>
+  <link rel="preconnect" href="https://generativelanguage.googleapis.com" crossorigin />
   <link rel="stylesheet" href="../css/style.css" />
 </head>
 <body>
@@ -12,7 +13,10 @@
       <span class="logo">&lt;/&gt;</span>
       <h1>AI Code Converter</h1>
     </div>
-    <span class="badge">Powered by Gemini</span>
+    <div class="topbar-links">
+      <a class="btn small" href="team.html">Team Code</a>
+      <span class="badge">Powered by Gemini</span>
+    </div>
   </header>
 
   <main class="container">
@@ -73,7 +77,10 @@
       <section class="panel">
         <div class="panel-head">
           <h2>Result</h2>
-          <button id="copyBtn" class="btn small" type="button" disabled>Copy</button>
+          <div class="head-actions">
+            <button id="postBtn" class="btn small primary" type="button" disabled>Post to Team</button>
+            <button id="copyBtn" class="btn small" type="button" disabled>Copy</button>
+          </div>
         </div>
         <pre class="output"><code id="outputCode">Your updated code will appear here.</code></pre>
         <div id="notes" class="notes hidden"></div>
@@ -87,6 +94,22 @@
     </div>
   </main>
 
+  <!-- POST TO TEAM POPUP -->
+  <div id="postModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
+    <div class="modal-card">
+      <h3 id="postModalTitle">Post to Team</h3>
+      <p id="postModalMeta" class="hint"></p>
+      <label for="postTitle">Title</label>
+      <input id="postTitle" type="text" maxlength="80" placeholder="Give this code a title" />
+      <p id="postError" class="status error hidden"></p>
+      <div class="modal-actions">
+        <button id="postCancel" class="btn" type="button">Cancel</button>
+        <button id="postConfirm" class="btn primary" type="button">Post</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/store.js"></script>
   <script src="../js/script.js"></script>
 </body>
 </html>
