@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team Code – AI Code Converter</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/team.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="home.html">
+      <span class="logo">&lt;/&gt;</span>
+      <h1>AI Code Converter</h1>
+    </a>
+    <div class="topbar-links">
+      <a class="btn small" href="index.html">Converter</a>
+      <a class="btn small primary" href="team.html">Team Code</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="team-head">
+      <div>
+        <h2>Team Code</h2>
+        <p class="hint">Code your team has posted. Click a post to see it.</p>
+      </div>
+      <span id="postCount" class="badge"></span>
+    </div>
+
+    <div class="team-layout">
+      <div id="postList" class="post-list"></div>
+      <section id="viewer" class="panel"></section>
+    </div>
+  </main>
+
+  <script src="../js/store.js"></script>
+  <script src="../js/team.js"></script>
+</body>
+</html>
