@@ -1,0 +1,23 @@
+.team-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.team-head h2 { margin: 0 0 2px; font-size: 1.5rem; }
+.team-head .hint { margin: 0; }
+
+.team-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .team-layout { grid-template-columns: 1fr; } }
+
+.post-list { display: flex; flex-direction: column; gap: 8px; max-height: 680px; overflow: auto; }
+.post-item {
+  width: 100%; text-align: left; font: inherit; cursor: pointer;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.post-item:hover { border-color: var(--accent); }
+.post-item.active { background: var(--panel-2); border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.post-title { font-weight: 600; font-size: 0.95rem; overflow-wrap: anywhere; }
+.post-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted); font-size: 0.78rem; }
+.tag { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; color: var(--text); font-size: 0.74rem; }
+
+.viewer-title { margin: 0; font-size: 1.2rem; overflow-wrap: anywhere; }
+.empty { color: var(--muted); text-align: center; padding: 40px 16px; }
+.empty a { color: var(--accent); }
