@@ -2,7 +2,7 @@
 //  GEMINI API KEY
 //  Get a new one free at: https://aistudio.google.com/apikey
 // =====================================================
-const GEMINI_API_KEY = "AQ.Ab8RN6I6cSj8yYIzu-70EnZrd7K9nZl3UrRoQsVkFQLJorgUDg";
+const GEMINI_API_KEY = "AQ.Ab8RN6Klip1l5MB4VRaqgp26UKBKMw5zmkyUYeNJTtu6-_Uc8A"; // <- put your own key here
 
 // Fastest first. The last working model is remembered and tried first next time.
 const MODELS = [
@@ -15,6 +15,9 @@ const MODELS = [
 
 // Lower = faster. Options: "minimal", "low", "medium", "high"
 const THINKING_LEVEL = "minimal";
+
+// If a model sends nothing for this long, give up on it and try the next one.
+const FIRST_TOKEN_TIMEOUT_MS = 8000;
 
 const API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -98,10 +101,15 @@ const notes = $("notes");
 const convertBtn = $("convertBtn");
 const copyBtn = $("copyBtn");
 const clearBtn = $("clearBtn");
+const postBtn = $("postBtn");
+const postModal = $("postModal");
+const postTitle = $("postTitle");
+const postError = $("postError");
 const statusEl = $("status");
 const modeHint = $("modeHint");
 
 let mode = "convert"; // "convert" | "fix"
+let lastResult = null;  // the most recent generated code, used by Post to Team
 
 // ================== UI HELPERS ==================
 function setStatus(msg, type = "") {
@@ -182,7 +190,7 @@ function buildPrompt(code) {
   const format = `
 Respond in EXACTLY this format and nothing else:
 1. One fenced code block containing ONLY the final code (no explanations inside it).
-2. After the code block, a line that says NOTES: followed by at most 4 short bullets.`;
+2. After the code block, a line that says NOTES: followed by at most 3 bullets, each under 15 words.`;
 
   if (mode === "convert") {
     return `You are an expert software engineer and code translator.
@@ -192,7 +200,7 @@ Convert the code below from ${srcText} to ${targetLang.value}.
 Rules:
 - Preserve behavior, logic, and structure as closely as possible.
 - Use modern, idiomatic ${targetLang.value} and current best practices.
-- Keep helpful comments and meaningful names.
+- Keep comments short and names meaningful.
 - Include all needed imports.
 - Never invent libraries or functions that do not exist.
 ${extraBlock}${format}
@@ -215,7 +223,11 @@ ${code}`;
 
 // ================== STREAMING API CALL ==================
 // Streams the answer so text appears immediately instead of after the full wait.
-async function streamModel(model, prompt, onText, useThinking = true) {
+const noThinking = new Set();   // models that rejected the thinking setting
+const cache = new Map();        // prompt -> finished answer (repeat runs are instant)
+
+async function streamModel(model, prompt, onText, useThinking = true, timeoutMs = 0) {
+  if (noThinking.has(model)) useThinking = false;
   const url = `${API_BASE}/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
 
   const generationConfig = { temperature: 0.2 };
@@ -223,9 +235,21 @@ async function streamModel(model, prompt, onText, useThinking = true) {
     generationConfig.thinkingConfig = { thinkingLevel: THINKING_LEVEL };
   }
 
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = timeoutMs
+    ? setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs)
+    : null;
+  const slowError = () => {
+    const err = new Error(`${model} was too slow.`);
+    err.retryNext = true;
+    return err;
+  };
+
   let res;
   try {
     res = await fetch(url, {
+      signal: controller.signal,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -237,18 +261,22 @@ async function streamModel(model, prompt, onText, useThinking = true) {
       })
     });
   } catch (e) {
+    clearTimeout(timer);
+    if (timedOut) throw slowError();
     const err = new Error("Network error. Check your internet or disable ad blockers.");
     err.retryNext = false;
     throw err;
   }
 
   if (!res.ok) {
+    clearTimeout(timer);
     const data = await res.json().catch(() => ({}));
     const msg = data?.error?.message || `Request failed (${res.status})`;
 
     // This model rejected the thinking setting: retry the same model without it.
     if (res.status === 400 && useThinking && /think/i.test(msg)) {
-      return streamModel(model, prompt, onText, false);
+      noThinking.add(model);
+      return streamModel(model, prompt, onText, false, timeoutMs);
     }
 
     const err = new Error(msg);
@@ -264,6 +292,7 @@ async function streamModel(model, prompt, onText, useThinking = true) {
   let full = "";
   let blockReason = "";
 
+  try {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -284,9 +313,16 @@ async function streamModel(model, prompt, onText, useThinking = true) {
           if (p.thought) continue; // skip thinking text
           if (p.text) full += p.text;
         }
+        if (full) clearTimeout(timer); // first real text arrived
         onText(full);
       } catch (e) { /* ignore a malformed chunk */ }
     }
+  }
+  } catch (e) {
+    if (timedOut) throw slowError();
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!full) {
@@ -302,6 +338,8 @@ async function callGemini(prompt, onText) {
     throw new Error("No API key. Open js/script.js and paste it on the GEMINI_API_KEY line.");
   }
 
+  if (cache.has(prompt)) { onText(cache.get(prompt)); return cache.get(prompt); }
+
   // Try the last model that worked first (skips slow failures).
   const remembered = localStorage.getItem("working_model");
   const order = remembered
@@ -309,10 +347,12 @@ async function callGemini(prompt, onText) {
     : MODELS;
 
   let lastError;
-  for (const model of order) {
+  for (const [i, model] of order.entries()) {
     try {
-      const text = await streamModel(model, prompt, onText);
+      const isLast = i === order.length - 1;
+      const text = await streamModel(model, prompt, onText, true, isLast ? 0 : FIRST_TOKEN_TIMEOUT_MS);
       localStorage.setItem("working_model", model);
+      cache.set(prompt, text);
       return text;
     } catch (err) {
       lastError = err;
@@ -359,6 +399,8 @@ async function run() {
 
   convertBtn.disabled = true;
   copyBtn.disabled = true;
+  postBtn.disabled = true;
+  lastResult = null;
   notes.classList.add("hidden");
   outputCode.textContent = "";
   statusEl.className = "status";
@@ -377,6 +419,14 @@ async function run() {
     });
 
     copyBtn.disabled = false;
+    lastResult = {
+      code: outputCode.textContent,
+      notes: notes.textContent,
+      mode,
+      language: mode === "convert" ? targetLang.value : (sourceLang.value === "Auto-detect" ? "Code" : sourceLang.value),
+      from: sourceLang.value
+    };
+    postBtn.disabled = !lastResult.code;
     const secs = ((performance.now() - started) / 1000).toFixed(1);
     setStatus(`Done in ${secs}s`, "ok");
   } catch (err) {
@@ -410,5 +460,52 @@ clearBtn.addEventListener("click", () => {
   outputCode.textContent = "Your updated code will appear here.";
   notes.classList.add("hidden");
   copyBtn.disabled = true;
+  postBtn.disabled = true;
+  lastResult = null;
   setStatus("");
 });
+
+// ================== POST TO TEAM ==================
+function openPostModal() {
+  if (!lastResult) return;
+  postTitle.value = lastResult.mode === "fix"
+    ? `Fixed ${lastResult.language} code`
+    : `${lastResult.from === "Auto-detect" ? "Code" : lastResult.from} → ${lastResult.language}`;
+  $("postModalMeta").textContent = `${lastResult.language} · ${lastResult.mode === "fix" ? "Fixed" : "Converted"}`;
+  postError.classList.add("hidden");
+  postModal.classList.remove("hidden");
+  postTitle.focus();
+  postTitle.select();
+}
+function closePostModal() { postModal.classList.add("hidden"); }
+
+function confirmPost() {
+  const title = postTitle.value.trim();
+  if (!title) {
+    postError.textContent = "Please enter a title.";
+    postError.classList.remove("hidden");
+    postTitle.focus();
+    return;
+  }
+  try {
+    const post = TeamStore.add({ title, ...lastResult });
+    closePostModal();
+    statusEl.className = "status ok";
+    statusEl.textContent = "Posted to Team! ";
+    const a = document.createElement("a");
+    a.href = "team.html#" + post.id;
+    a.textContent = "View it on the Team page";
+    a.style.color = "var(--accent)";
+    statusEl.append(a);
+  } catch {
+    postError.textContent = "Couldn't save the post (browser storage is full or blocked).";
+    postError.classList.remove("hidden");
+  }
+}
+
+postBtn.addEventListener("click", openPostModal);
+$("postCancel").addEventListener("click", closePostModal);
+$("postConfirm").addEventListener("click", confirmPost);
+postModal.addEventListener("click", (e) => { if (e.target === postModal) closePostModal(); });
+postTitle.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); confirmPost(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePostModal(); });
